@@ -1,0 +1,28 @@
+import {Keypair} from '@solana/web3.js'
+
+import fs from "fs";
+import dotenv from 'dotenv'; 
+dotenv.config(); 
+
+
+function loadKeypairFromFile(filename: string): Keypair {
+    const secret = JSON.parse(fs.readFileSync(filename).toString()) as number[];
+    const secretKey = Uint8Array.from(secret);
+    return Keypair.fromSecretKey(secretKey);
+}
+
+function loadIdl() {
+    const idl =JSON.parse(fs.readFileSync("./resources/pumpidl/idlpump.json", "utf8"))
+    return idl;
+}
+
+
+export {loadKeypairFromFile,loadIdl};
+
+
+function test() {
+ const global = process.env;
+ console.log(global);
+}
+
+test()  
