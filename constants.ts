@@ -29,4 +29,4 @@ const amount = new BN(35528); // Amount to buy
 const maxSolCost = new BN(1000000); // Maximum SOL cost
 
 
-export {connection,wallet}
+export {connection,wallet,idl,global,eventAuthority,feeRecipient,programId}

@@ -1,17 +1,42 @@
 import {Token} from '../models/token';
 import {User} from '../models/user';
 import * as constants from '../constants'
+import { Transaction } from '../models/transaction';
 
 class Data {
-    currentToken: Token;
-    user : User
+  setTokenDataFromTransactions() {
    
-    constructor(token: Token,user: User) {
-      this.currentToken= token;
-      this.user = user;
+    if(this.transactions !== undefined){
+      if(this.transactions.length > 0){
+        const mint = this.transactions[0].tokenTransfers[0].mint;
+        const bondingCurve = this.transactions[0].tokenTransfers[0].toUserAccount;
+        const associatedBondingCurve = this.transactions[0].tokenTransfers[0].toTokenAccount;
+        const token = new Token(mint,bondingCurve,associatedBondingCurve);
+        this.currentToken = token;
+        this.tokenList.set(mint, token);
+        return token;
+      }
     }
   }
-  const mainUser = new User(constants.wallet);
- const GlobalData = new Data(new Token("7wXoc387BC9UtHTcGi6HtvzkGwcB2QYGLTm5CmH71UKk", "DvYrvEuMEqMTJV5dmPFLD8s54H59hcHHU1DtNmfr1k8","DWbMsHH7D94s5DPtGXXdt2G6UcV15A1Q99yEwMvRcb79" ),mainUser);
+    currentToken?: Token;
+    tokenList: Map<string, Token> = new Map();
+    user : User;
+    transactions?: Transaction[];
+   
+    constructor(user: User) {
 
-export {Data,GlobalData}
+      this.user = user;
+    }
+
+    getTransactions(): Transaction[] | undefined {
+      return this.transactions;
+  }
+
+  setTransactions(transactions: Transaction[]): void {
+      this.transactions = transactions;
+  }
+
+    
+  }
+
+export {Data}

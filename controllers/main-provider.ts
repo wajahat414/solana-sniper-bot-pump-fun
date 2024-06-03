@@ -1,23 +1,24 @@
 import *  as constX from '../constants' 
-import {GlobalData,Data} from '../data/data'
+import {Data} from '../data/data'
 import { Token } from '../models/token';
+import { SolanaCommunicator } from '../services/solana_communicator';
 
 class MainController {
-   data: Data;
+   setTokenDataFromTransactions() {
+    return this.data.setTokenDataFromTransactions();
+  }
+   data: Data ;
+   solanaCommunicator: SolanaCommunicator;
 
    constructor (data:Data){
     this.data = data;
+    this.solanaCommunicator = new SolanaCommunicator();
    }
 
   
-    getToken():Token {
-      
-      return this.data.currentToken;
-    }
+
 
   }
 
- const  mainController = new MainController(GlobalData);
 
-
- export {mainController}
+ export {MainController}
