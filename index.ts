@@ -8,7 +8,7 @@ import { MainController } from "./controllers/main-provider";
 const coreController = new MainController(new Data(new User(wallet)));
 
 async function start() {
-    
+
     getTokenData();
     setUpTrade();
 }
