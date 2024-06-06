@@ -5,8 +5,12 @@
     "@solflare-wallet/sdk": "^1.4.2",
     "axios": "^1.7.2",
     "dotenv": "^16.4.5",
-    "helius-sdk": "^1.3.2",
+    "helius-sdk": "^1.0.15",
+    "pubsub-js": "^1.9.4",
     "solana-swap": "^1.0.14",
     "ts-node": "^10.9.2"
+  },
+  "devDependencies": {
+    "@types/pubsub-js": "^1.8.6"
   }
 }

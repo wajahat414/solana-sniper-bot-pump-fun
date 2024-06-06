@@ -9,7 +9,7 @@ ws.on('open', function open() {
 
   let payload = {
       method: "subscribeTokenTrade",
-      keys: ["6f3nVM9PyjdgyVB2KDFyqsfVkoGnxFYWhj3ookdTpump"] 
+      keys: ["CntTfzwcpL5mPSogb5MNN5nugQuEePaw4H8fJQngpump"] 
     }
   ws.send(JSON.stringify(payload));
 });

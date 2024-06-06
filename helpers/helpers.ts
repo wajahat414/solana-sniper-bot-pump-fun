@@ -20,9 +20,8 @@ function loadIdl() {
 export {loadKeypairFromFile,loadIdl};
 
 
-function test() {
- const global = process.env;
- console.log(global);
+export class Helpers {
+    static showAlert(title: string, message: string) {
+       console.log(`${title}: ${message}`);
+    }
 }
-
-test()  

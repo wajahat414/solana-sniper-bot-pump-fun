@@ -7,7 +7,8 @@ const rpcurlHelius = "https://mainnet.helius.rpc.com/?api-key=ee3680cf-196e-475b
 
 const quickNodeRpc = "https://floral-responsive-aura.solana-mainnet.quiknode.pro/27668ddeedee2cab8681e0847d72968cb6d495da/";
 
-const connection = new Connection(quickNodeRpc, 'confirmed');
+const connectionQuickNode = new Connection(quickNodeRpc, 'confirmed');
+const connectionHelius = new Connection(rpcurlHelius, 'confirmed');
 
 const keypairPath = './resources/wallets/mainWallet.json';
 
@@ -29,4 +30,4 @@ const amount = new BN(35528); // Amount to buy
 const maxSolCost = new BN(1000000); // Maximum SOL cost
 
 
-export {connection,wallet,idl,global,eventAuthority,feeRecipient,programId}
+export {connectionQuickNode ,connectionHelius,wallet,idl,global,eventAuthority,feeRecipient,programId}
