@@ -4,9 +4,20 @@ import { AppCodes } from "../models/app_resp_codes";
 import { Token } from "../models/token";
 import { Trade } from "../models/trade";
 import { get_price_from_transaction } from "../services/get_price_from_transaction";
+import { PumpPortalCommunicator } from "../services/pump_portal_communicator";
 import { SolanaCommunicator } from "../services/solana_communicator";
 
 class MainController {
+  data: Data;
+  solanaCommunicator: SolanaCommunicator;
+  pumpPortalCommunicator: PumpPortalCommunicator;
+
+  constructor(data: Data) {
+    this.data = data;
+    this.solanaCommunicator = new SolanaCommunicator();
+    this.pumpPortalCommunicator = new PumpPortalCommunicator();
+  }
+  testfunctions() {}
   async executeBuyTrade(): Promise<AppCodes> {
     const trade = this.data.currentTrade;
     if (trade) {
@@ -62,8 +73,13 @@ class MainController {
 
   async setup_assocaited_token_account(): Promise<AppCodes> {
     try {
+      // const resp =
+      //   await this.solanaCommunicator.getOrCreateAssociatedTokenAccountX(
+      //     this.data.currentToken!.mint,
+      //     constX.wallet.publicKey
+      //   );
       const resp =
-        await this.solanaCommunicator.getOrCreateAssociatedTokenAccountX(
+        await this.solanaCommunicator.createAssoicatedTokenAccountHeliusSdk(
           this.data.currentToken!.mint,
           constX.wallet.publicKey
         );
@@ -78,13 +94,6 @@ class MainController {
   }
   setTokenDataFromTransactions(): AppCodes {
     return this.data.setTokenDataFromTransactions();
-  }
-  data: Data;
-  solanaCommunicator: SolanaCommunicator;
-
-  constructor(data: Data) {
-    this.data = data;
-    this.solanaCommunicator = new SolanaCommunicator();
   }
 }
 

@@ -17,6 +17,9 @@ import {
   Account,
   TOKEN_PROGRAM_ID,
   getOrCreateAssociatedTokenAccount,
+  createAssociatedTokenAccountInstruction,
+  getAssociatedTokenAddressSync,
+  getAccount,
 } from "@solana/spl-token";
 import {
   idl,
@@ -27,14 +30,16 @@ import {
   connectionHelius,
   wallet,
   programId,
+  helius_api_key,
 } from "../constants";
 import { Token } from "../models/token";
 import { Trade } from "../models/trade";
 import { AppCodes } from "../models/app_resp_codes";
+import { Helius, DAS } from "helius-sdk";
 
 const max_tries_for_associated_token_account = 3;
 const max_tries_for_trade = 3;
-
+const helius = new Helius(helius_api_key);
 class SolanaCommunicator {
   async buy_trade_from_pump(
     trade: Trade,
@@ -166,10 +171,91 @@ class SolanaCommunicator {
       return associatedTokenAccountStr;
     } catch (err) {
       console.error(`Retrying... Try Limit${max_tries}`, err);
+      await new Promise((f) => setTimeout(f, 1000));
       this.getOrCreateAssociatedTokenAccountX(mint, owner, max_tries - 1);
     }
 
     return associatedTokenAccountStr;
+  }
+
+  async createAssoicatedTokenAccountHeliusSdk(
+    mint: PublicKey,
+    owner: PublicKey
+  ): Promise<any> {
+    const programId = TOKEN_PROGRAM_ID;
+    const associatedTokenProgramId = ASSOCIATED_TOKEN_PROGRAM_ID;
+    const associatedToken = getAssociatedTokenAddressSync(
+      mint,
+      owner,
+      false,
+      programId,
+      associatedTokenProgramId
+    );
+
+    try {
+      const transInstruction = createAssociatedTokenAccountInstruction(
+        wallet.publicKey,
+        associatedToken,
+        owner,
+        mint,
+        programId,
+        associatedTokenProgramId
+      );
+
+      const signature = await helius.rpc.sendSmartTransaction(
+        [transInstruction],
+        [wallet.payer]
+      );
+      const promises = [
+        this.getAccountWrapper(
+          "QuickNode",
+
+          associatedToken.toString(),
+          connectionQuickNode
+        ),
+        this.getAccountWrapper(
+          "HELIUS",
+          associatedToken.toString(),
+          connectionHelius
+        ),
+      ];
+      const [respCode, connName, account] = await Promise.all(promises);
+      if (respCode == AppCodes.SUCCESS) {
+        const accountx = account as Account;
+        console.log(
+          "Associated token account from",
+          connName,
+          ":",
+          accountx.address.toBase58()
+        );
+
+        return new PublicKey(accountx.address.toBase58());
+      }
+    } catch (e) {
+      console.error(
+        "Error creating associated token account from helius SDK",
+        e
+      );
+      AppCodes.FAILED_GET_ASSOCIATED_TOKEN_ACCOUNT;
+    }
+  }
+  async getAccountWrapper(
+    connectionName: String,
+    address: String,
+    connection: Connection
+  ): Promise<any> {
+    try {
+      const account = await getAccount(connection, new PublicKey(address));
+
+      return [AppCodes.SUCCESS, connectionName, account];
+    } catch (e) {
+      console.error(
+        "Error fetching account from connection",
+        connectionName,
+        e
+      );
+      return [AppCodes.FAILED_GET_ASSOCIATED_TOKEN_ACCOUNT, "", ""];
+    }
   }
 
   async getOrCreateAssociatedTokenAccountWithMetadata(
@@ -241,6 +327,57 @@ class SolanaCommunicator {
       console.log("Transaction signature", txnSignature);
     } catch (err) {
       console.error("Transaction failed", err);
+    }
+  }
+
+  async testFunction() {
+    const testTokenData = {
+      signature:
+        "32LL4ATQVAByoCmywpb29KU58VUkHA2rG11mM4ireyvgtyEgGdHcxTy8wMK4Bq1sNXw3rheLQ3qC7SodiV633FJc",
+      mint: "8m6dQLLjtJ1DvgFDaHzA2idrQPVwP39xseG3TgQCpump",
+      traderPublicKey: "Bh3JN99NXd4gtPtrbuY2yi6RmmcHuPsKAvwEfWpowxiT",
+      txType: "create",
+      initialBuy: 0,
+      bondingCurveKey: "G3XNptFreqpMdj5FwjjK9nJmnzEftnbuYz6qC3MHczFF",
+      vTokensInBondingCurve: 1073000000,
+      vSolInBondingCurve: 30,
+      marketCapSol: 27.958993476234856,
+    };
+
+    const res = await connectionQuickNode.getParsedTransaction(
+      "66X18LpisJYMiDemyypywBYR5LjgNjHgvSnjjEvxvrDUK1t9zRuqfwg5fCJayVT7aPLtEpBjYnwAGEyVHErq5MSN",
+      { maxSupportedTransactionVersion: 0 }
+    );
+    const accounts = res!.transaction.message.accountKeys;
+
+    const mint_ = accounts[1].pubkey.toString(); //corrected
+
+    const bondingCurve = accounts[3].pubkey.toString(); //corrected
+    const associatedBondingCurve = accounts[4].pubkey.toString(); //corrected
+
+    console.log(res);
+  }
+
+  async getTokenDataFromTransactionSignature(signature: string): Promise<any> {
+    try {
+      const res = await connectionQuickNode.getParsedTransaction(signature, {
+        maxSupportedTransactionVersion: 0,
+      });
+      const accounts = res!.transaction.message.accountKeys;
+
+      const mint_ = accounts[1].pubkey.toString(); //corrected
+
+      const bondingCurve = accounts[3].pubkey.toString(); //corrected
+      const associatedBondingCurve = accounts[4].pubkey.toString(); //corrected
+      const tokenDataFromTrxSig = {
+        mint: mint_,
+        bondingCurve: bondingCurve,
+        associatedBondingCurve: associatedBondingCurve,
+      };
+      return tokenDataFromTrxSig;
+    } catch (err) {
+      console.error("getting Token Data fromTransaction  signaturefailed", err);
+      return AppCodes.FAILED_GETTING_TOKEN_DATA_FROM_TRANSACTION_SIGNATURE;
     }
   }
 }
