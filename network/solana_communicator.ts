@@ -358,7 +358,7 @@ class SolanaCommunicator {
     console.log(res);
   }
 
-  async getTokenDataFromTransactionSignature(signature: string): Promise<any> {
+  async getAssocaitedBondingCurve(signature: string): Promise<any> {
     try {
       const res = await connectionQuickNode.getParsedTransaction(signature, {
         maxSupportedTransactionVersion: 0,
@@ -374,7 +374,7 @@ class SolanaCommunicator {
         bondingCurve: bondingCurve,
         associatedBondingCurve: associatedBondingCurve,
       };
-      return tokenDataFromTrxSig;
+      return associatedBondingCurve;
     } catch (err) {
       console.error("getting Token Data fromTransaction  signaturefailed", err);
       return AppCodes.FAILED_GETTING_TOKEN_DATA_FROM_TRANSACTION_SIGNATURE;

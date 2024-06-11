@@ -1,26 +1,31 @@
-import { Transaction } from "./models/transaction";
 import { Data } from "./data/data";
 import { User } from "./models/user";
-import { connectionHelius, connectionQuickNode, wallet } from "./constants";
+import { wallet } from "./constants";
 import { MainController } from "./controllers/main-provider";
 import { Helpers } from "./helpers/helpers";
 import { AppCodes } from "./models/app_resp_codes";
 import PubSub from "pubsub-js";
 import { EventType } from "./events/app_event_manager";
+import logger from "./helpers/app_logger";
+import dotenv from "dotenv";
+import { BUY_STRATEGY_TYPE } from "./logic/strategy";
+dotenv.config();
 // Subscribe to events
 
 const coreController = new MainController(new Data(new User(wallet)));
 
 async function start() {
+  const strategy = process.env.BUY_STRATEGY;
+  const buy_strategy = strategy as BUY_STRATEGY_TYPE;
+  if (buy_strategy == BUY_STRATEGY_TYPE.INTITIAL_BUY_VOL_ZERO) {
+    logger.info("Buy strategy  is Initail Volume Zero");
+  } else {
+    logger.info("Buy strategy  is not Initail Volume Zero");
+  }
+  const wallettest = wallet;
+  logger.debug(`wallet ${wallet.publicKey}`);
   subscribeAppEvents();
-  PubSub.publish(EventType.GET_NEW_MINT, {});
-  // const sol_per_trade = 0.001;
-  // const token_rate = 3.771623497871014e-8;
-  // const token_per_sol = sol_per_trade / token_rate;
-  // console.log(token_per_sol);
-
-  const res = await coreController.solanaCommunicator.testFunction();
-  console.log(res);
+  coreController.pumpPortalCommunicator.subscribeNewToken();
 }
 
 start();
@@ -33,71 +38,71 @@ async function subscribeAppEvents() {
   PubSub.subscribe(EventType.CREATE_ASSOCIATED_TOKEN_ACCOUNT, (_, payload) =>
     handleCreateAssociatedTokenAccount(payload)
   );
-  PubSub.subscribe(EventType.GET_INTITIAL_PRICE, (_, payload) =>
-    handleGetInitialTokenPrice(payload)
-  );
+
   PubSub.subscribe(EventType.SETUP_BUY_TRADE, (_, payload) =>
     handleSetupBuyTrade(payload)
   );
   PubSub.subscribe(EventType.EXECUTE_BUY_TRADE, (_, payload) =>
     handleExecuteBuyTrade(payload)
   );
+
+  PubSub.subscribe(EventType.POST_BUY_TRADE, (_, payload) =>
+    handlePostBuyTrade(payload)
+  );
 }
 
 async function handleCreateAssociatedTokenAccount(payload: any): Promise<void> {
-  console.log("create_associated_token_account recieved in subscribeAppEvents");
-  const res = await coreController.setup_assocaited_token_account();
-  if (res == 1) {
-    PubSub.publish(EventType.GET_INTITIAL_PRICE, {});
-  }
-}
-
-async function handleGetInitialTokenPrice(payload: any): Promise<void> {
-  console.log("get_intitial_price recieved in subscribeAppEvents");
-  const res = await coreController.getIntitialPriceTick();
-
-  if (res == 1) {
-    PubSub.publish(EventType.SETUP_BUY_TRADE, {});
+  logger.debug(
+    "create_associated_token_account recieved in subscribeAppEvents"
+  );
+  try {
+    const res = await coreController.setup_assocaited_token_account();
+    if (res == 1) {
+      PubSub.publish(EventType.SETUP_BUY_TRADE, {});
+    }
+  } catch (e) {
+    logger.error("error in create_associated_token_account", e);
   }
 }
 
 async function handleGetNewMint(payload: any): Promise<void> {
-  console.log("get New Mint from Pump Portal");
-
-  const data = await getTransactions();
-
-  if (
-    data != AppCodes.FAILED &&
-    data != AppCodes.FAILED_FETCHING_TRANSACTIONS
-  ) {
-    const transactions = Transaction.fromJSONArray(data);
-    coreController.data.setTransactions(transactions);
-    const resp = coreController.setTokenDataFromTransactions(); // getting new Token data from transactions'
-
-    if (resp == AppCodes.SUCCESS) {
-      console.log("new token data recieved");
-      PubSub.publish(EventType.CREATE_ASSOCIATED_TOKEN_ACCOUNT, {});
+  try {
+    if (payload["initialBuy"] == 0) {
+      const resp = await coreController.setTokenInfo(payload);
+      if (resp != AppCodes.FAILED_SETTING_TOKEN_INFO) {
+        logger.info("Success Setting Token Info");
+        PubSub.publish(EventType.CREATE_ASSOCIATED_TOKEN_ACCOUNT, {});
+      }
     } else {
-      Helpers.showAlert(
-        "Error",
-        `Failed to get token data from transactions ${resp}`
-      );
+      logger.warn(payload);
+      logger.info(`initialBuy is not zero ${payload["mint"]}`);
     }
+  } catch (e) {
+    console.log(e);
   }
 }
 
 function handleSetupBuyTrade(payload: any): void {
   console.log("setup_buy_trade recieved in subscribeAppEvents");
-  coreController.setupBuyTrade();
+  if (coreController.setupBuyTrade() == AppCodes.SUCCESS) {
+    console.log("buy trade setup");
+    PubSub.publish(EventType.EXECUTE_BUY_TRADE, {});
+  }
 }
 
 async function handleExecuteBuyTrade(payload: any): Promise<void> {
-  console.log("execute_buy_trade recieved in subscribeAppEvents");
+  logger.debug("execute_buy_trade recieved in subscribeAppEvents");
   const resp = await coreController.executeBuyTrade();
   if (resp == AppCodes.SUCCESS_BUY_TRADE) {
-    console.log("token bought");
-    PubSub.publish(EventType.TOKEN_BOUGHT, {});
+    logger.info("Success Buy Trade");
+    PubSub.publish(EventType.POST_BUY_TRADE, {});
   } else {
     Helpers.showAlert("Error", `Failed to buy token ${resp}`);
+    logger.error(`Failed to buy token ${resp}`);
   }
+}
+
+async function handlePostBuyTrade(payload: any): Promise<void> {
+  coreController.postBuyTradeAction();
+  logger.debug("post_buy_trade recieved in subscribeAppEvents");
 }

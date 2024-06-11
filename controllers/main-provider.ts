@@ -1,13 +1,53 @@
 import * as constX from "../constants";
 import { Data } from "../data/data";
+import logger from "../helpers/app_logger";
 import { AppCodes } from "../models/app_resp_codes";
 import { Token } from "../models/token";
+import { TokenData } from "../models/token_data";
 import { Trade } from "../models/trade";
-import { get_price_from_transaction } from "../services/get_price_from_transaction";
-import { PumpPortalCommunicator } from "../services/pump_portal_communicator";
-import { SolanaCommunicator } from "../services/solana_communicator";
+import { get_data_from_transaction } from "../network/helius_api";
+import { PumpPortalCommunicator } from "../network/pump_portal_communicator";
+import { SolanaCommunicator } from "../network/solana_communicator";
 
 class MainController {
+  async postBuyTradeAction() {
+    const signature = this.data.currentToken!.tradeSignatures[0];
+
+    try {
+      const postTradeData = await get_data_from_transaction(signature);
+      if (postTradeData) {
+        const tokenBought = postTradeData["tokenAmountTransferred"];
+        const sol_deducted = postTradeData["nativeBalanceChangeSol"];
+        const token_post_price = postTradeData["rate"];
+      }
+    } catch (e) {
+      logger.error(
+        ` Failed to get Buy trade information from Signature ${signature}`
+      );
+    }
+  }
+  async setTokenInfo(payload: any) {
+    const tokenInfo = TokenData.fromJSON(payload);
+    const assocaitedBondingCurve =
+      await this.solanaCommunicator.getAssocaitedBondingCurve(
+        tokenInfo.signature
+      );
+    if (
+      assocaitedBondingCurve != AppCodes.FAILED_GET_ASSOCIATED_TOKEN_ACCOUNT
+    ) {
+      const token = new Token(
+        tokenInfo.mint,
+        tokenInfo.bondingCurveKey,
+        assocaitedBondingCurve
+      );
+      token.initialPrice =
+        tokenInfo.vTokensInBondingCurve / tokenInfo.vSolInBondingCurve;
+      this.data.tokenList.set(tokenInfo.signature, token);
+      this.data.tokenSet.add(token);
+    } else {
+      return AppCodes.FAILED_SETTING_TOKEN_INFO;
+    }
+  }
   data: Data;
   solanaCommunicator: SolanaCommunicator;
   pumpPortalCommunicator: PumpPortalCommunicator;
@@ -15,9 +55,15 @@ class MainController {
   constructor(data: Data) {
     this.data = data;
     this.solanaCommunicator = new SolanaCommunicator();
-    this.pumpPortalCommunicator = new PumpPortalCommunicator();
+    this.pumpPortalCommunicator = PumpPortalCommunicator.getInstance();
   }
-  testfunctions() {}
+  async testfunctions() {
+    const result = await get_data_from_transaction(
+      "5Kn6qvuz2nb1P6zyFPqXBpNQbkFB4hSTCsoisCQvxhLVsTZQhGyuFQ9unwfCYJjxgipQvE3WTkif5zJJWU5M9m7v"
+    );
+    logger.info(result);
+    const test = result;
+  }
   async executeBuyTrade(): Promise<AppCodes> {
     const trade = this.data.currentTrade;
     if (trade) {
@@ -56,28 +102,14 @@ class MainController {
         true
       );
       this.data.currentTrade = trade;
+      return AppCodes.SUCCESS;
     }
 
     //  this.solanaCommunicator.buy_token_from_pump(this.get_price_from_transaction
   }
-  async getIntitialPriceTick(): Promise<number> {
-    const initial_price_x = await get_price_from_transaction(
-      this.data.currentToken!.mint.toBase58()
-    );
-    if (initial_price_x == -1) {
-      return -1;
-    }
-    this.data.currentToken!.initialPrice = initial_price_x;
-    return 1;
-  }
 
   async setup_assocaited_token_account(): Promise<AppCodes> {
     try {
-      // const resp =
-      //   await this.solanaCommunicator.getOrCreateAssociatedTokenAccountX(
-      //     this.data.currentToken!.mint,
-      //     constX.wallet.publicKey
-      //   );
       const resp =
         await this.solanaCommunicator.createAssoicatedTokenAccountHeliusSdk(
           this.data.currentToken!.mint,
