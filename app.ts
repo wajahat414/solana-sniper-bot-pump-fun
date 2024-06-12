@@ -1,14 +1,14 @@
-import { Data } from "./data/data";
-import { User } from "./models/user";
+import { Data } from "./src/data/data";
+import { User } from "./src/models/user";
 import { wallet } from "./constants";
-import { MainController } from "./controllers/main-provider";
-import { Helpers } from "./helpers/helpers";
-import { AppCodes } from "./models/app_resp_codes";
+import { MainController } from "./src/controllers/main-provider";
+import { Helpers } from "./src/helpers/helpers";
+import { AppCodes } from "./src/models/app_resp_codes";
 import PubSub from "pubsub-js";
-import { EventType } from "./events/app_event_manager";
-import logger from "./helpers/app_logger";
+import { EventType } from "./src/events/app_event_manager";
+import logger from "./src/helpers/app_logger";
 import dotenv from "dotenv";
-import { BUY_STRATEGY_TYPE } from "./logic/strategy";
+import { BUY_STRATEGY_TYPE } from "./src/logic/strategy";
 dotenv.config();
 // Subscribe to events
 
@@ -68,17 +68,21 @@ async function handleCreateAssociatedTokenAccount(payload: any): Promise<void> {
 async function handleGetNewMint(payload: any): Promise<void> {
   try {
     if (payload["initialBuy"] == 0) {
+      logger.info(
+        `initialBuy is zero ${payload["mint"]}  initialBuy ${payload["initialBuy"]}`
+      );
       const resp = await coreController.setTokenInfo(payload);
       if (resp != AppCodes.FAILED_SETTING_TOKEN_INFO) {
         logger.info("Success Setting Token Info");
         PubSub.publish(EventType.CREATE_ASSOCIATED_TOKEN_ACCOUNT, {});
       }
     } else {
-      logger.warn(payload);
-      logger.info(`initialBuy is not zero ${payload["mint"]}`);
+      logger.info(
+        `initialBuy is not zero ${payload["mint"]}  initialBuy ${payload["initialBuy"]}`
+      );
     }
   } catch (e) {
-    console.log(e);
+    logger.error("error in handleGetNewMint", e);
   }
 }
 

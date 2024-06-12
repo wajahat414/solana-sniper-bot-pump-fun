@@ -31,14 +31,16 @@ import {
   wallet,
   programId,
   helius_api_key,
-} from "../constants";
+} from "../../constants";
 import { Token } from "../models/token";
 import { Trade } from "../models/trade";
 import { AppCodes } from "../models/app_resp_codes";
 import { Helius, DAS } from "helius-sdk";
+const max_tries = 3;
+const max_tries_for_associated_token_account = max_tries;
+const max_tries_for_trade = max_tries;
+let assocaited_bonding_curve_max_tries = max_tries;
 
-const max_tries_for_associated_token_account = 3;
-const max_tries_for_trade = 3;
 const helius = new Helius(helius_api_key);
 class SolanaCommunicator {
   async buy_trade_from_pump(
@@ -330,39 +332,17 @@ class SolanaCommunicator {
     }
   }
 
-  async testFunction() {
-    const testTokenData = {
-      signature:
-        "32LL4ATQVAByoCmywpb29KU58VUkHA2rG11mM4ireyvgtyEgGdHcxTy8wMK4Bq1sNXw3rheLQ3qC7SodiV633FJc",
-      mint: "8m6dQLLjtJ1DvgFDaHzA2idrQPVwP39xseG3TgQCpump",
-      traderPublicKey: "Bh3JN99NXd4gtPtrbuY2yi6RmmcHuPsKAvwEfWpowxiT",
-      txType: "create",
-      initialBuy: 0,
-      bondingCurveKey: "G3XNptFreqpMdj5FwjjK9nJmnzEftnbuYz6qC3MHczFF",
-      vTokensInBondingCurve: 1073000000,
-      vSolInBondingCurve: 30,
-      marketCapSol: 27.958993476234856,
-    };
-
-    const res = await connectionQuickNode.getParsedTransaction(
-      "66X18LpisJYMiDemyypywBYR5LjgNjHgvSnjjEvxvrDUK1t9zRuqfwg5fCJayVT7aPLtEpBjYnwAGEyVHErq5MSN",
-      { maxSupportedTransactionVersion: 0 }
-    );
-    const accounts = res!.transaction.message.accountKeys;
-
-    const mint_ = accounts[1].pubkey.toString(); //corrected
-
-    const bondingCurve = accounts[3].pubkey.toString(); //corrected
-    const associatedBondingCurve = accounts[4].pubkey.toString(); //corrected
-
-    console.log(res);
-  }
-
   async getAssocaitedBondingCurve(signature: string): Promise<any> {
     try {
+      const promises = [
+        connectionHelius.getParsedTransaction(signature, {
+          maxSupportedTransactionVersion: 0,
+        }),
+      ];
       const res = await connectionQuickNode.getParsedTransaction(signature, {
         maxSupportedTransactionVersion: 0,
       });
+
       const accounts = res!.transaction.message.accountKeys;
 
       const mint_ = accounts[1].pubkey.toString(); //corrected

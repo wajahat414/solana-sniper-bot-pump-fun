@@ -1,6 +1,6 @@
 import { BN, Wallet } from "@project-serum/anchor";
 import { PublicKey, Connection } from "@solana/web3.js";
-import { loadKeypairFromFile, loadIdl } from "./helpers/helpers";
+import { loadKeypairFromFile, loadIdl } from "./src/helpers/helpers";
 
 const rpcURl =
   "https://lb.drpc.org/ogrpc?network=solana&dkey=AieoLqQV-UyrpLOR2Ir6a0BVT2QzHZgR764stigucSjy";
@@ -14,7 +14,7 @@ const quickNodeRpc =
 const connectionQuickNode = new Connection(quickNodeRpc, "confirmed");
 const connectionHelius = new Connection(rpcurlHelius, "confirmed");
 
-const keypairPath = "./resources/wallets/mainWallet.json";
+const keypairPath = "./res/wallets/mainWallet.json";
 
 const walletSec = loadKeypairFromFile(keypairPath);
 const wallet = new Wallet(walletSec);

@@ -1,4 +1,4 @@
-import * as constX from "../constants";
+import * as constX from "../../constants";
 import { Data } from "../data/data";
 import logger from "../helpers/app_logger";
 import { AppCodes } from "../models/app_resp_codes";
@@ -27,7 +27,18 @@ class MainController {
     }
   }
   async setTokenInfo(payload: any) {
-    const tokenInfo = TokenData.fromJSON(payload);
+    let tokenInfo: TokenData;
+    try {
+      tokenInfo = new TokenData(payload);
+      logger.info(
+        `Successfully Parsed Token Data using constructor from new Mint Info ${tokenInfo}`
+      );
+    } catch (e) {
+      logger.error(
+        `failed to Parse Token Data using constructor from new Mint Info ${e}`
+      );
+      return AppCodes.FAILED_SETTING_TOKEN_INFO;
+    }
     const assocaitedBondingCurve =
       await this.solanaCommunicator.getAssocaitedBondingCurve(
         tokenInfo.signature
@@ -57,13 +68,13 @@ class MainController {
     this.solanaCommunicator = new SolanaCommunicator();
     this.pumpPortalCommunicator = PumpPortalCommunicator.getInstance();
   }
-  async testfunctions() {
-    const result = await get_data_from_transaction(
-      "5Kn6qvuz2nb1P6zyFPqXBpNQbkFB4hSTCsoisCQvxhLVsTZQhGyuFQ9unwfCYJjxgipQvE3WTkif5zJJWU5M9m7v"
-    );
-    logger.info(result);
-    const test = result;
-  }
+  // async testfunctions() {
+  //   const result = await get_data_from_transaction(
+  //     "5Kn6qvuz2nb1P6zyFPqXBpNQbkFB4hSTCsoisCQvxhLVsTZQhGyuFQ9unwfCYJjxgipQvE3WTkif5zJJWU5M9m7v"
+  //   );
+  //   logger.info(result);
+  //   const test = result;
+  // }
   async executeBuyTrade(): Promise<AppCodes> {
     const trade = this.data.currentTrade;
     if (trade) {

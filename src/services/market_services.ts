@@ -1,8 +1,10 @@
-import axios from "axios";
-import { Portfolio } from "../models/portfolio";
 import { EventType } from "../events/app_event_manager";
-import { PumpPortalCommunicator } from "../network/pump_portal_communicator";
 import logger from "../helpers/app_logger";
+import { Portfolio } from "../models/portfolio";
+
+import { PumpPortalCommunicator } from "../network/pump_portal_communicator";
+
+import PubSub from "pubsub-js";
 export class MarketService {
   private _marketData: { [tokenId: string]: number } = {};
   private activeTokens: Set<string> = new Set();
@@ -40,7 +42,7 @@ export class MarketService {
           const token_id = data["token_id"];
           const price = data["price"];
           this._marketData[token_id] = price;
-          PubSub.publish(EventType.PRICE_UPDATE, this._marketData);
+          PubSub.publish(EventType.PRICE_UPDATE, data);
         }
       );
     } catch (error) {
@@ -77,7 +79,6 @@ export class MarketService {
 async function testMarketService() {
   const marketService = new MarketService();
   marketService.addTokenForPriceUpdate(
-    "6G9aLFuJGnquQBe5RSzgHWgRBbddfVLBdFQvXvwqpump"
+    "FBskidiY8rBPAdS4EhcVxSJ8yymPGQZzSWbmMPJHpump"
   );
-  marketService.fetchCurrentPrices();
 }

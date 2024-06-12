@@ -21,18 +21,18 @@ export class PortfolioController {
     });
   }
 
-  buyAsset(tokenId: string, amount: number, currentPrice: number) {
-    const asset = new Asset(tokenId, "Solana Token", amount, currentPrice);
-    this.userPortfolio.addAsset(asset);
-    const transaction = new TokenTransaction(
-      "tx123",
-      asset,
-      "buy",
-      amount,
-      currentPrice
-    );
-    console.log("Bought asset:", transaction);
-  }
+  //   buyAsset(tokenId: string, amount: number, currentPrice: number) {
+  //     const asset = new Asset(tokenId, "Solana Token", amount, currentPrice);
+  //     this.userPortfolio.addAsset(asset);
+  //     const transaction = new TokenTransaction(
+  //       "tx123",
+  //       asset,
+  //       "buy",
+  //       amount,
+  //       currentPrice
+  //     );
+  //     console.log("Bought asset:", transaction);
+  //   }
 
   sellAsset(tokenId: string, amount: number, currentPrice: number) {
     const asset = this.userPortfolio.assets[tokenId];
