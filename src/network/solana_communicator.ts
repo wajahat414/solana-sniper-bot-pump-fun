@@ -36,6 +36,8 @@ import { Token } from "../models/token";
 import { Trade } from "../models/trade";
 import { AppCodes } from "../models/app_resp_codes";
 import { Helius, DAS } from "helius-sdk";
+import logger from "../helpers/app_logger";
+import { delay } from "../helpers/helpers";
 const max_tries = 3;
 const max_tries_for_associated_token_account = max_tries;
 const max_tries_for_trade = max_tries;
@@ -52,12 +54,14 @@ class SolanaCommunicator {
     }
 
     const max_sol_to_invest = trade.sol_amount / LAMPORTS_PER_SOL;
+    const max_sol_to_invest_bn = new BN(max_sol_to_invest);
+    const max_token_to_invest_bn = new BN(trade.token_amount);
 
     try {
       const transaction_signature = await this.buy_token_from_pump(
-        max_sol_to_invest,
-        trade.token_amount,
-        trade.mint,
+        max_sol_to_invest_bn,
+        max_token_to_invest_bn,
+        trade.token,
         new PublicKey(trade.assocaited_token_account)
       );
       return transaction_signature;
@@ -65,7 +69,7 @@ class SolanaCommunicator {
       console.error("Error buying tokens:", e);
       console.log(`retrying again...`);
 
-      this.buy_trade_from_pump(trade, max_tries - 1);
+      return this.buy_trade_from_pump(trade, max_tries - 1);
     }
   }
 
@@ -107,7 +111,6 @@ class SolanaCommunicator {
 
     // Send transaction
     try {
-      const promises = [];
       const blockHash = (
         await connectionQuickNode.getLatestBlockhash("finalized")
       ).blockhash;
@@ -127,10 +130,8 @@ class SolanaCommunicator {
         recoveredTransaction.serialize()
       );
       return txnSignature;
-
-      console.log("Transaction signature", txnSignature);
     } catch (err) {
-      console.error("Transaction failed", err);
+      logger.error(`Error in buying Token from Pump`, err);
     }
   }
 
@@ -140,44 +141,41 @@ class SolanaCommunicator {
     max_tries = max_tries_for_associated_token_account
   ): Promise<any> {
     let associatedTokenAccountStr = "";
+    const resp = await this.createAssoicatedTokenAccountHeliusSdk(mint, owner);
+    if (resp != AppCodes.FAILED_GET_ASSOCIATED_TOKEN_ACCOUNT && resp) {
+      logger.info(
+        "success from helius sdk in creating associated token account"
+      );
+      return resp;
+    } else {
+      logger.error(
+        "error creating associated token from helius sdk Trying with QuickNode"
+      );
 
-    const promises = [
-      this.getOrCreateAssociatedTokenAccountWithMetadata(
+      const resp = await this.getOrCreateAssociatedTokenAccountWithMetadata(
         connectionQuickNode,
         "QuickNode",
         mint,
         owner
-      ),
-      this.getOrCreateAssociatedTokenAccountWithMetadata(
-        connectionHelius,
-        "Helius",
-        mint,
-        owner
-      ),
-    ];
-    if (max_tries == 0) {
-      return AppCodes.FAILED_GET_ASSOCIATED_TOKEN_ACCOUNT;
-    }
-
-    try {
-      const result = await Promise.race(promises);
-      console.log(
-        "Associated token account from",
-        result.connectionName,
-        ":",
-        result.address
       );
-
-      const associatedTokenAccount = result.address;
-      associatedTokenAccountStr = associatedTokenAccount;
-      return associatedTokenAccountStr;
-    } catch (err) {
-      console.error(`Retrying... Try Limit${max_tries}`, err);
-      await new Promise((f) => setTimeout(f, 1000));
-      this.getOrCreateAssociatedTokenAccountX(mint, owner, max_tries - 1);
+      if (resp.address == "") {
+        logger.error(
+          "error creating associated token from QuickNode Trying with Helius Rpc"
+        );
+        const resp = await this.getOrCreateAssociatedTokenAccountWithMetadata(
+          connectionHelius,
+          "Helius",
+          mint,
+          owner
+        );
+        if (resp.address == "") {
+          logger.error("error creating associated token from Helius Rpc");
+          return AppCodes.FAILED_GET_ASSOCIATED_TOKEN_ACCOUNT;
+        }
+        return resp.address;
+      }
+      return resp.address;
     }
-
-    return associatedTokenAccountStr;
   }
 
   async createAssoicatedTokenAccountHeliusSdk(
@@ -238,7 +236,7 @@ class SolanaCommunicator {
         "Error creating associated token account from helius SDK",
         e
       );
-      AppCodes.FAILED_GET_ASSOCIATED_TOKEN_ACCOUNT;
+      return AppCodes.FAILED_GET_ASSOCIATED_TOKEN_ACCOUNT;
     }
   }
   async getAccountWrapper(
@@ -266,18 +264,29 @@ class SolanaCommunicator {
     mint: PublicKey,
     owner: PublicKey
   ): Promise<{ connectionName: string; address: string }> {
-    const associatedTokenAccount = await getOrCreateAssociatedTokenAccount(
-      connection,
-      wallet.payer,
-      mint,
-      owner,
-      false,
-      "confirmed"
-    );
-    return {
-      connectionName,
-      address: associatedTokenAccount.address.toString(),
-    };
+    try {
+      const associatedTokenAccount = await getOrCreateAssociatedTokenAccount(
+        connection,
+        wallet.payer,
+        mint,
+        owner,
+        false,
+        "confirmed"
+      );
+      return {
+        connectionName,
+        address: associatedTokenAccount.address.toString(),
+      };
+    } catch (e) {
+      logger.error(
+        `Error creating associated token account from ${connectionName}`,
+        e
+      );
+      return {
+        connectionName,
+        address: "",
+      };
+    }
   }
 
   async sell_token_from_pump(
@@ -332,32 +341,26 @@ class SolanaCommunicator {
     }
   }
 
-  async getAssocaitedBondingCurve(signature: string): Promise<any> {
+  async getAssocaitedBondingCurve(
+    signature: string,
+    max_tries = 3
+  ): Promise<any> {
     try {
-      const promises = [
-        connectionHelius.getParsedTransaction(signature, {
-          maxSupportedTransactionVersion: 0,
-        }),
-      ];
       const res = await connectionQuickNode.getParsedTransaction(signature, {
         maxSupportedTransactionVersion: 0,
       });
 
       const accounts = res!.transaction.message.accountKeys;
 
-      const mint_ = accounts[1].pubkey.toString(); //corrected
-
-      const bondingCurve = accounts[3].pubkey.toString(); //corrected
       const associatedBondingCurve = accounts[4].pubkey.toString(); //corrected
-      const tokenDataFromTrxSig = {
-        mint: mint_,
-        bondingCurve: bondingCurve,
-        associatedBondingCurve: associatedBondingCurve,
-      };
       return associatedBondingCurve;
     } catch (err) {
-      console.error("getting Token Data fromTransaction  signaturefailed", err);
-      return AppCodes.FAILED_GETTING_TOKEN_DATA_FROM_TRANSACTION_SIGNATURE;
+      logger.error(`Retrying after 1 second getting bondingCurve `);
+      await delay(1000);
+      if (max_tries == 0) {
+        return AppCodes.FAILED_GETTING_BONDING_CURVE;
+      }
+      return await this.getAssocaitedBondingCurve(signature, max_tries - 1);
     }
   }
 }

@@ -1,5 +1,4 @@
-import { Data } from "./src/data/data";
-import { User } from "./src/models/user";
+import { appData } from "./src/data/data";
 import { wallet } from "./constants";
 import { MainController } from "./src/controllers/main-provider";
 import { Helpers } from "./src/helpers/helpers";
@@ -12,8 +11,8 @@ import { BUY_STRATEGY_TYPE } from "./src/logic/strategy";
 dotenv.config();
 // Subscribe to events
 
-const coreController = new MainController(new Data(new User(wallet)));
-
+const coreController = new MainController(appData);
+let token_limit = 1;
 async function start() {
   const strategy = process.env.BUY_STRATEGY;
   const buy_strategy = strategy as BUY_STRATEGY_TYPE;
@@ -49,15 +48,16 @@ async function subscribeAppEvents() {
   PubSub.subscribe(EventType.POST_BUY_TRADE, (_, payload) =>
     handlePostBuyTrade(payload)
   );
+  PubSub.subscribe(EventType.INITIATE_PRICE_UPDATE, (_, payload) =>
+    handleInitiatePriceUpdate(payload)
+  );
 }
 
 async function handleCreateAssociatedTokenAccount(payload: any): Promise<void> {
-  logger.debug(
-    "create_associated_token_account recieved in subscribeAppEvents"
-  );
+  logger.info("create_associated_token_account recieved in subscribeAppEvents");
   try {
     const res = await coreController.setup_assocaited_token_account();
-    if (res == 1) {
+    if (res == AppCodes.SUCCESS_SETUP_ASSOCIATED_TOKEN_ACCOUNT) {
       PubSub.publish(EventType.SETUP_BUY_TRADE, {});
     }
   } catch (e) {
@@ -67,7 +67,8 @@ async function handleCreateAssociatedTokenAccount(payload: any): Promise<void> {
 
 async function handleGetNewMint(payload: any): Promise<void> {
   try {
-    if (payload["initialBuy"] == 0) {
+    if (payload["initialBuy"] > 1 && token_limit > 0) {
+      token_limit = token_limit - 1;
       logger.info(
         `initialBuy is zero ${payload["mint"]}  initialBuy ${payload["initialBuy"]}`
       );
@@ -75,6 +76,7 @@ async function handleGetNewMint(payload: any): Promise<void> {
       if (resp != AppCodes.FAILED_SETTING_TOKEN_INFO) {
         logger.info("Success Setting Token Info");
         PubSub.publish(EventType.CREATE_ASSOCIATED_TOKEN_ACCOUNT, {});
+        PubSub.unsubscribe(EventType.GET_NEW_MINT);
       }
     } else {
       logger.info(
@@ -107,6 +109,9 @@ async function handleExecuteBuyTrade(payload: any): Promise<void> {
 }
 
 async function handlePostBuyTrade(payload: any): Promise<void> {
-  coreController.postBuyTradeAction();
+  await coreController.postBuyTradeAction();
   logger.debug("post_buy_trade recieved in subscribeAppEvents");
+}
+function handleInitiatePriceUpdate(payload: any): void {
+  logger.debug("initiate_price_update recieved in subscribeAppEvents");
 }

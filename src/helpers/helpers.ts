@@ -22,3 +22,7 @@ export class Helpers {
     console.log(`${title}: ${message}`);
   }
 }
+
+export function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}

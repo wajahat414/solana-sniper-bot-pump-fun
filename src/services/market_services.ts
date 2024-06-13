@@ -58,6 +58,17 @@ export class MarketService {
         asset.currentPrice > asset.purchasePrice * 1.2
       ) {
         // Example condition
+        const token_id = asset.tokenId;
+        const amount = asset.amount;
+        const current_price = asset.currentPrice;
+
+        const assetPayload = {
+          token_id: token_id,
+          amount: amount,
+          current_price: current_price,
+          sell_condition_met: true,
+          sell_condition_met_timestamp: Date.now(),
+        };
         PubSub.publish(EventType.SELL_CONDITION_MET, asset);
       }
     }

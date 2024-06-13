@@ -1,5 +1,6 @@
 import * as constX from "../../constants";
 import { Data } from "../data/data";
+import { EventType } from "../events/app_event_manager";
 import logger from "../helpers/app_logger";
 import { AppCodes } from "../models/app_resp_codes";
 import { Token } from "../models/token";
@@ -16,9 +17,16 @@ class MainController {
     try {
       const postTradeData = await get_data_from_transaction(signature);
       if (postTradeData) {
-        const tokenBought = postTradeData["tokenAmountTransferred"];
+        const token_bought = postTradeData["tokenAmountTransferred"];
         const sol_deducted = postTradeData["nativeBalanceChangeSol"];
         const token_post_price = postTradeData["rate"];
+        const token_id = this.data.currentToken!.mint;
+        PubSub.publish(EventType.TRACK_BOUGHT_TOKEN, {
+          token_id,
+          token_bought,
+          sol_deducted,
+          token_post_price,
+        });
       }
     } catch (e) {
       logger.error(
@@ -43,9 +51,7 @@ class MainController {
       await this.solanaCommunicator.getAssocaitedBondingCurve(
         tokenInfo.signature
       );
-    if (
-      assocaitedBondingCurve != AppCodes.FAILED_GET_ASSOCIATED_TOKEN_ACCOUNT
-    ) {
+    if (assocaitedBondingCurve != AppCodes.FAILED_GETTING_BONDING_CURVE) {
       const token = new Token(
         tokenInfo.mint,
         tokenInfo.bondingCurveKey,
@@ -53,9 +59,13 @@ class MainController {
       );
       token.initialPrice =
         tokenInfo.vTokensInBondingCurve / tokenInfo.vSolInBondingCurve;
-      this.data.tokenList.set(tokenInfo.signature, token);
+
       this.data.tokenSet.add(token);
+      this.data.currentToken = token;
     } else {
+      logger.error(
+        `Failed to get Assocaited Bonding Curve from Signatsure ${tokenInfo.signature}`
+      );
       return AppCodes.FAILED_SETTING_TOKEN_INFO;
     }
   }
@@ -76,16 +86,12 @@ class MainController {
   //   const test = result;
   // }
   async executeBuyTrade(): Promise<AppCodes> {
-    const trade = this.data.currentTrade;
+    const trade = this.data.pendingTrades.pop();
     if (trade) {
       const resp = await this.solanaCommunicator.buy_trade_from_pump(trade);
       if (resp != AppCodes.FAILED_BUY_TRADE) {
         this.data.currentToken!.tradeSignatures.push(resp);
         if (this.data.currentToken) {
-          this.data.tokenList.set(
-            this.data.currentToken!.mint.toBase58(),
-            this.data.currentToken
-          );
           this.data.tokenSet.add(this.data.currentToken);
         }
 
@@ -109,10 +115,10 @@ class MainController {
         sol_per_trade,
         token_per_sol,
         this.data.currentToken,
-        this.data.currentToken!.associatedTokenAccount.toBase58(),
+        this.data.currentToken!.associatedTokenAccount.toString(),
         true
       );
-      this.data.currentTrade = trade;
+      this.data.pendingTrades.push(trade);
       return AppCodes.SUCCESS;
     }
 
@@ -121,22 +127,29 @@ class MainController {
 
   async setup_assocaited_token_account(): Promise<AppCodes> {
     try {
-      const resp =
-        await this.solanaCommunicator.createAssoicatedTokenAccountHeliusSdk(
-          this.data.currentToken!.mint,
-          constX.wallet.publicKey
-        );
-      if (resp != AppCodes.FAILED_GET_ASSOCIATED_TOKEN_ACCOUNT) {
-        this.data.currentToken!.associatedTokenAccount = resp;
+      if (this.data.currentToken) {
+        const resp =
+          await this.solanaCommunicator.getOrCreateAssociatedTokenAccountX(
+            this.data.currentToken!.mint,
+            constX.wallet.publicKey
+          );
+
+        if (
+          resp != AppCodes.FAILED_GET_ASSOCIATED_TOKEN_ACCOUNT &&
+          resp != ""
+        ) {
+          this.data.currentToken!.associatedTokenAccount = resp;
+          return AppCodes.SUCCESS_SETUP_ASSOCIATED_TOKEN_ACCOUNT;
+        }
+        return AppCodes.FAILED_SETUP_ASSOCIATED_TOKEN_ACCOUNT;
+      } else {
+        logger.error("Failed to get current Token");
+        return AppCodes.FAILED_SETUP_ASSOCIATED_TOKEN_ACCOUNT;
       }
-      return AppCodes.SUCCESS_SETUP_ASSOCIATED_TOKEN_ACCOUNT;
     } catch (e) {
       console.log(e);
       return AppCodes.FAILED_SETUP_ASSOCIATED_TOKEN_ACCOUNT;
     }
-  }
-  setTokenDataFromTransactions(): AppCodes {
-    return this.data.setTokenDataFromTransactions();
   }
 }
 
