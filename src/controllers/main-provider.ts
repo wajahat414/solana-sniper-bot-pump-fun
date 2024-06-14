@@ -38,6 +38,7 @@ class MainController {
     let tokenInfo: TokenData;
     try {
       tokenInfo = new TokenData(payload);
+
       logger.info(
         `Successfully Parsed Token Data using constructor from new Mint Info ${tokenInfo}`
       );
@@ -58,7 +59,7 @@ class MainController {
         assocaitedBondingCurve
       );
       token.initialPrice =
-        tokenInfo.vTokensInBondingCurve / tokenInfo.vSolInBondingCurve;
+        tokenInfo.vSolInBondingCurve / tokenInfo.vTokensInBondingCurve;
 
       this.data.tokenSet.add(token);
       this.data.currentToken = token;

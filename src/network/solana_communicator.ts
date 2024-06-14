@@ -53,23 +53,27 @@ class SolanaCommunicator {
       return AppCodes.FAILED_BUY_TRADE;
     }
 
-    const max_sol_to_invest = trade.sol_amount / LAMPORTS_PER_SOL;
+    const max_sol_to_invest = trade.sol_amount * LAMPORTS_PER_SOL;
     const max_sol_to_invest_bn = new BN(max_sol_to_invest);
     const max_token_to_invest_bn = new BN(trade.token_amount);
 
-    try {
-      const transaction_signature = await this.buy_token_from_pump(
-        max_sol_to_invest_bn,
-        max_token_to_invest_bn,
-        trade.token,
-        new PublicKey(trade.assocaited_token_account)
+    const result = await this.buy_token_from_pump(
+      max_sol_to_invest_bn,
+      max_token_to_invest_bn,
+      trade.token,
+      new PublicKey(trade.assocaited_token_account)
+    );
+    if (result[AppCodes.SUCCESS]) {
+      const success = result.get(AppCodes.SUCCESS);
+      logger.info(`Success in buying Token from Pump ${success}`);
+      return result[AppCodes.SUCCESS];
+    } else if (result[AppCodes.FAILED]) {
+      const error = result[AppCodes.FAILED];
+      const jsonResp = JSON.parse(error);
+      logger.error(
+        `Error in buying Token from Pump ${jsonResp}`,
+        result.get(AppCodes.FAILED)
       );
-      return transaction_signature;
-    } catch (e) {
-      console.error("Error buying tokens:", e);
-      console.log(`retrying again...`);
-
-      return this.buy_trade_from_pump(trade, max_tries - 1);
     }
   }
 
@@ -89,7 +93,8 @@ class SolanaCommunicator {
     maxSolCost: BN,
     token: Token,
     associatedUserTokenAccount: PublicKey
-  ) {
+  ): Promise<any> {
+    const result = new Map<AppCodes, any>();
     const tx = new Transaction().add(
       this.program.instruction.buy(amount, maxSolCost, {
         accounts: {
@@ -129,8 +134,10 @@ class SolanaCommunicator {
       const txnSignature = await connectionQuickNode.sendRawTransaction(
         recoveredTransaction.serialize()
       );
-      return txnSignature;
+      result.set(AppCodes.SUCCESS, txnSignature);
+      return result;
     } catch (err) {
+      result.set(AppCodes.FAILED, err);
       logger.error(`Error in buying Token from Pump`, err);
     }
   }
